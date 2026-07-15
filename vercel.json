@@ -8,6 +8,10 @@
         "includeFiles": "{views,controllers,routes,lib,data}/**",
         "excludeFiles": "public/**"
       }
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
