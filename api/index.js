@@ -1,5 +1,2 @@
-// api/index.js
-const serverless = require("serverless-http");
-const app = require("../index"); // Import the Express app you already wrote
-
-module.exports = serverless(app);
+// Vercel's Node runtime accepts an Express application directly.
+module.exports = require("../index");
