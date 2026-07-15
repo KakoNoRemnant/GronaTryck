@@ -1,91 +1,51 @@
-// userRoutes.js
 const express = require("express");
+const storage = require("../lib/storage");
+
 const router = express.Router();
-const fs = require("fs");
-const path = require("path");
 
-// Path to the JSON file where users are stored
-const usersFilePath = path.join(__dirname, "../data/users.json");
-
-// Route for user login
-router.post("/login", (req, res) => {
-  const { email, password } = req.body;
-
-  // Validate input fields
-  if (!email || !password) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Email and password are required!" });
-  }
-
-  // Read existing users from the JSON file
-  fs.readFile(usersFilePath, "utf-8", (err, data) => {
-    if (err) {
-      console.error("Error reading users file:", err);
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal server error" });
+router.post("/register", async (req, res, next) => {
+  try {
+    const user = req.body;
+    if (!user.email || !user.confirmEmail || user.email !== user.confirmEmail) {
+      return res.status(400).json({ success: false, message: "Emails do not match!" });
     }
-
-    let users = [];
-    if (data) {
-      users = JSON.parse(data);
+    if (!user.password || !user.confirmPassword || user.password !== user.confirmPassword) {
+      return res.status(400).json({ success: false, message: "Passwords do not match!" });
     }
-
-    // Check if user exists
-    const user = users.find((user) => user.email === email);
-    if (!user) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email not found!" });
-    }
-
-    // Validate password
-    if (user.password !== password) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Incorrect password!" });
-    }
-
-    // Save user session
-    req.session.user = { email: user.email, name: user.name };
-    req.session.save((err) => {
-      if (err) {
-        return res
-          .status(500)
-          .json({ success: false, message: "Session save failed" });
-      }
-      return res
-        .status(200)
-        .json({ success: true, message: "Login successful!" });
-    });
-  });
-});
-
-// Route to check user session
-router.get("/session", (req, res) => {
-  if (req.session && req.session.user) {
-    res.json({ loggedIn: true, user: req.session.user });
-  } else {
-    res.json({ loggedIn: false });
+    const created = await storage.createUser(user);
+    if (!created) return res.status(400).json({ success: false, message: "User already exists!" });
+    return res.json({ success: true, message: "Account created successfully!" });
+  } catch (error) {
+    return next(error);
   }
 });
 
-// Route for user logout
-router.post("/logout", (req, res) => {
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        return res
-          .status(500)
-          .json({ success: false, message: "Logout failed" });
-      } else {
-        return res.json({ success: true, message: "Logout successful" });
-      }
+router.post("/login", async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ success: false, message: "Email and password are required!" });
+    const user = await storage.authenticateUser(email, password);
+    if (!user) return res.status(400).json({ success: false, message: "Wrong email or password" });
+    req.session.user = user;
+    req.session.save((error) => {
+      if (error) return next(error);
+      return res.json({ success: true, message: "Login successful!" });
     });
-  } else {
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/session", (req, res) =>
+  res.json(req.session?.user ? { loggedIn: true, user: req.session.user } : { loggedIn: false })
+);
+
+router.post("/logout", (req, res, next) => {
+  if (!req.session) return res.json({ success: true, message: "Logout successful" });
+  req.session.destroy((error) => {
+    if (error) return next(error);
     return res.json({ success: true, message: "Logout successful" });
-  }
+  });
 });
 
 module.exports = router;

@@ -2,6 +2,9 @@
   "name": "webshop",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
@@ -12,11 +15,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "body-parser": "^1.20.3",
+    "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "ejs": "^3.1.10",
     "express": "^4.21.1",
     "express-session": "^1.18.1",
+    "pg": "^8.22.0",
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {

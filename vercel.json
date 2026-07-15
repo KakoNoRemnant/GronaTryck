@@ -5,12 +5,13 @@
       "src": "api/index.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "{views,controllers,routes,data}/**",
+        "includeFiles": "{views,controllers,routes,lib,data}/**",
         "excludeFiles": "public/**"
       }
     }
   ],
   "routes": [
+    { "src": "/static/(.*)", "dest": "/public/$1" },
     { "src": "/public/(.*)", "dest": "/public/$1" },
     {
       "src": "/(.*\\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|eot))",

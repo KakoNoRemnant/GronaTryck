@@ -3,19 +3,30 @@ const session = require("express-session");
 const path = require("path");
 const cors = require("cors");
 const fs = require("fs");
+const database = require("./lib/database");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- Sessions (MemoryStore is fine locally; use a shared store in production) ---
+const sessionSecret = process.env.SESSION_SECRET || "local-development-secret-change-me";
+const sessionStore = database.enabled
+  ? new (require("connect-pg-simple")(session))({
+      pool: database.pool,
+      createTableIfMissing: true,
+    })
+  : undefined;
+
 app.use(
   session({
-    secret: "your-secret-key",
+    store: sessionStore,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
+    proxy: process.env.NODE_ENV === "production",
     cookie: {
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
+      sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 24,
     },
   })
@@ -44,87 +55,6 @@ app.use("/user", userRoutes);
 app.use("/order", orderRoutes);
 app.use("/contact", contactRoutes);
 app.use("/api", offertRoutes);
-
-// --- Custom endpoints (unchanged) ---
-// Handle user registration and save it to users.json
-app.post("/user/register", (req, res) => {
-  const newUser = req.body;
-
-  if (
-    !newUser.email ||
-    !newUser.confirmEmail ||
-    newUser.email !== newUser.confirmEmail
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Emails do not match!" });
-  }
-  if (
-    !newUser.password ||
-    !newUser.confirmPassword ||
-    newUser.password !== newUser.confirmPassword
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Passwords do not match!" });
-  }
-
-  const usersFilePath = path.join(__dirname, "data", "users.json");
-
-  if (!fs.existsSync(usersFilePath)) {
-    console.log("Creating users.json file because it does not exist.");
-    fs.writeFileSync(usersFilePath, JSON.stringify([]));
-  }
-
-  fs.readFile(usersFilePath, "utf8", (err, data) => {
-    if (err) {
-      console.error("Error reading users file:", err);
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal server error" });
-    }
-
-    let users = [];
-    try {
-      users = data ? JSON.parse(data) : [];
-    } catch (err) {
-      console.error("Error parsing users file:", err);
-      return res
-        .status(500)
-        .json({ success: false, message: "Internal server error" });
-    }
-
-    const existingUser = users.find((user) => user.email === newUser.email);
-    if (existingUser) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User already exists!" });
-    }
-
-    users.push({
-      email: newUser.email,
-      password: newUser.password,
-      name: newUser.name,
-      address: newUser.address,
-      postalCode: newUser.postalCode,
-      phoneNumber: newUser.phoneNumber,
-    });
-
-    console.log("Attempting to write to users.json...");
-
-    fs.writeFile(usersFilePath, JSON.stringify(users, null, 2), (err) => {
-      if (err) {
-        console.error("Error writing users file:", err);
-        return res
-          .status(500)
-          .json({ success: false, message: "Internal server error" });
-      }
-
-      console.log("User successfully added to users.json");
-      res.json({ success: true, message: "Account created successfully!" });
-    });
-  });
-});
 
 // Link to the product page
 app.get("/produktsidan/:id", (req, res) => {
@@ -182,15 +112,10 @@ app.get("/klader", (req, res) => {
   );
 });
 
-app.post("/api/submit-offert", (req, res) => {
-  console.log("Received POST request:", req.body);
-  res.json({ success: true, message: "Offert received!" });
-});
-
 // Routes for other pages
 app.get("/index", (req, res) => res.redirect("/"));
 app.get("/butik", (req, res) => res.render("butik"));
-app.get("/stanleyStella", (req, res) => res.render("stanleyStella"));
+app.get("/stanleyStella", (req, res) => res.render("stanleystella"));
 app.get("/hallbarhet", (req, res) => res.render("hallbarhet"));
 app.get("/about", (req, res) => res.render("about"));
 app.get("/kontakt", (req, res) => res.render("kontakt"));
@@ -211,12 +136,14 @@ if (require.main === module) {
   });
 }
 
+app.get("/api/health", (req, res) =>
+  res.json({ ok: true, database: database.enabled ? "configured" : "local-json" })
+);
+
 // Basic error handler so requests don't hang silently
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
   res.status(500).send("Internal Server Error");
 });
-
-app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 module.exports = app;
